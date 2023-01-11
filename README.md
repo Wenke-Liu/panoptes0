@@ -18,6 +18,7 @@ Model abbreviations:
     - flags: `--base_model='InceptionResNetV1' --feature_pool=True`
 
 - F{1, 2, 3, 4}: X{1, 2, 3, 4} with covariates (age, BMI)
+    - with abbreviations: `--variant=F{1, 2 ,3, 4}`
     - additonal flag: `--covariate=age,BMI`
 
 Use the corresponding command line arguments to instantiate the desired Panoptes variant.

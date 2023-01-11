@@ -51,7 +51,7 @@ BATCH_SIZE = args.batch_size
 AGG = args.agg_level
 SEED = args.seed
 
-if not (VARIANT.startswith(('X', 'F')) and VARIANT.endswith('1', '2', '3', '4')):
+if not (VARIANT.startswith(('X', 'F')) and VARIANT.endswith(('1', '2', '3', '4'))):
     print('Variant abbreviation not valid. Using individual flags.')
 
 else:

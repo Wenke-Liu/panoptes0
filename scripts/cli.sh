@@ -1,12 +1,13 @@
 # training with full tile list, label list and data split
 nohup python train.py \
     --split=True \
-    --out_dir='../results/NL5_Arm1q/F2' \
-    --tile_idx_dir='../idx_files/ucec_all_he_tiles_index.csv' \
+    --out_dir='../test' \
+    --tile_idx_dir='../idx_files/ucec_all_he_tiles_index_sample_2000.csv' \
     --label_df_dir='../idx_files/labels_trn_disc_tcga.csv' \
     --lab_col='Arm1q_gain' \
-    --covariate=age,BMI \
-    --max_epoch=20 \
+    --covariate=Age,BMI \
+    --variant=F2 \
+    --max_epoch=2 \
     --batch_size=16 \
     --dropout=0.7 \
     --base_model='InceptionResNetV1' \

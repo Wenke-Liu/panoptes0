@@ -72,7 +72,7 @@ PATIENCE = args.patience
 SEED = args.seed
 AGG = args.agg_level
 
-if not (VARIANT.startswith(('X', 'F')) and VARIANT.endswith('1', '2', '3', '4')):
+if not (VARIANT.startswith(('X', 'F')) and VARIANT.endswith(('1', '2', '3', '4'))):
     print('Variant abbreviation not valid. Using individual flags.')
 
 else:
