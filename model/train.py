@@ -89,7 +89,7 @@ else:
     else:
         FEATURE_POOL = True
     
-    print('Overridden by abbreviation if different:\n')
+    print('Overridden by abbreviation if different:\n')    # use abbreviations
     print('base_model: {}'.format(BASE_MODEL))
     print('feature_pool: {}'.format(str(FEATURE_POOL)))
 
