@@ -89,7 +89,8 @@ else:
     else:
         FEATURE_POOL = True
     
-    print('Overridden by abbreviation if different:\n')    # use abbreviations
+    print('Overridden by abbreviation if different:')    # use abbreviations
+    print('covariate: {}'.format(str(COVARIATE)))
     print('base_model: {}'.format(BASE_MODEL))
     print('feature_pool: {}'.format(str(FEATURE_POOL)))
 
@@ -132,7 +133,7 @@ else:    # patient level random split controled by SPLIT_SEED
     data_idx = data_idx.dropna()
     print('Using label data: ' + args.label_df_dir)
     lab_df = pd.read_csv(args.label_df_dir)
-    data_idx = data_idx.merge(lab_df[['Patient_ID', args.lab_col]], how='left')  # can change
+    data_idx = data_idx.merge(lab_df[['Patient_ID', 'Tumor', args.lab_col]], how='left')  # can change
     print('Renaming column {} into label column.'.format(args.lab_col))
     data_idx = data_idx.rename(columns={args.lab_col: 'label'})
 
@@ -148,7 +149,7 @@ else:    # patient level random split controled by SPLIT_SEED
     print('All data idx: {}'.format(str(data_idx.shape)))
 
     trn_id, val_id, tst_id = data_split(data_idx,
-                                    split_ratio=(0.7, 0.15, 0.15),
+                                    split_ratio=(0.8, 0.1, 0.1),
                                     stratify='label',
                                     seed=SPLIT_SEED)
     
@@ -177,21 +178,21 @@ MAX_STEPS = ceil(trn_df.shape[0]/BATCH_SIZE)
 print('Maximum steps per epoch: ' + str(MAX_STEPS))
 
 if COVARIATE is None:
-    trn = DataSet(filenames=trn_df[['L1path', 'L2path', 'L3path']], labels=trn_df['label'], tile_weights=trn_df['sample_weights'], id_level=3)
-    val = DataSet(filenames=val_df[['L1path', 'L2path', 'L3path']], labels=val_df['label'], tile_weights=val_df['sample_weights'], id_level=3)
-    tst = DataSet(filenames=tst_df[['L1path', 'L2path', 'L3path']], labels=tst_df['label'], tile_weights=tst_df['sample_weights'], id_level=3)
+    trn = DataSet(filenames=trn_df[['L1path', 'L2path', 'L3path']], labels=trn_df['label'], tile_weights=trn_df['sample_weights'])
+    val = DataSet(filenames=val_df[['L1path', 'L2path', 'L3path']], labels=val_df['label'], tile_weights=val_df['sample_weights'])
+    tst = DataSet(filenames=tst_df[['L1path', 'L2path', 'L3path']], labels=tst_df['label'], tile_weights=tst_df['sample_weights'])
 
 else:
     
     trn = DataSet(filenames=trn_df[['L1path', 'L2path', 'L3path']], 
                   labels=trn_df['label'], covariate=trn_df[COVARIATE], 
-                  tile_weights=trn_df['sample_weights'], id_level=3)
+                  tile_weights=trn_df['sample_weights'])
     val = DataSet(filenames=val_df[['L1path', 'L2path', 'L3path']],
                   labels=val_df['label'], covariate=val_df[COVARIATE], 
-                  tile_weights=val_df['sample_weights'], id_level=3)
+                  tile_weights=val_df['sample_weights'])
     tst = DataSet(filenames=tst_df[['L1path', 'L2path', 'L3path']], 
                   labels=tst_df['label'], covariate=tst_df[COVARIATE], 
-                  tile_weights=tst_df['sample_weights'], id_level=3)
+                  tile_weights=tst_df['sample_weights'])
 
 
 trn_ds = trn.create_dataset(batch_size=BATCH_SIZE, ds_epoch=None, augmentation=True)

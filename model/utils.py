@@ -1,4 +1,5 @@
 import os
+import math
 import pandas as pd
 import sklearn.utils as sku
 import numpy as np
@@ -63,46 +64,52 @@ def pick_gpu_lowest_memory():
 
 def data_split(df,
                id='Patient_ID',
-               stratify='Tumor',
+               stratify='label',
                split_ratio=(0.8, 0.1, 0.1),
                collapse=True,
                seed=42):
 
     print('Using {} as id column.'.format(str(id)))
-    split_points = np.cumsum(split_ratio)
+    print('Split ratio: ' + str(split_ratio))
     levels = df[stratify].unique()
     levels.sort()
     trn = []
     val = []
     tst = []
-    trn_size = []
-    val_size = []
-    tst_size = []
+    trn_sizes = []
+    val_sizes = []
+    tst_sizes = []
     np.random.seed(seed)
     seeds = np.random.randint(low=0, high=1000000, size=len(levels))
 
     for i, level in enumerate(levels):    # stratified splits
         ids = df.loc[df[stratify] == level][id].unique()
         print('{} unique ids in {}'.format(str(len(ids)), str(level)))
-        np.random.seed(seeds[i])
-        prob = np.random.uniform(0, 1, size=len(ids))
-        sub_df = pd.DataFrame({'ids': ids, 'prob': prob})
-        trn.append(sub_df.loc[sub_df['prob'] < split_points[0]]['ids'])
-        val.append(sub_df.loc[(sub_df['prob'] > split_points[0]) & (sub_df['prob'] < split_points[1])]['ids'])
-        tst.append(sub_df.loc[sub_df['prob'] > split_points[1]]['ids'])
-        trn_size.append(trn[i].size)
-        val_size.append(val[i].size)
-        tst_size.append(tst[i].size)
+        
+        val_size = math.floor(len(ids)*split_ratio[1])
+        tst_size = math.floor(len(ids)*split_ratio[2])
+        trn_size = len(ids) - (val_size + tst_size)
 
-    print('Training samples: ' + str(trn_size))
-    print('Validation samples: ' + str(val_size))
-    print('Testing samples: ' + str(tst_size))
+        trn_sizes.append(trn_size)
+        val_sizes.append(val_size)
+        tst_sizes.append(tst_size)
+
+        np.random.seed(seeds[i])    
+        np.random.shuffle(ids)
+        
+        trn.append(ids[:trn_size])
+        val.append(ids[trn_size: (trn_size + val_size)])
+        tst.append(ids[(trn_size + val_size):])
+        
+    print('Training samples: ' + str(trn_sizes))
+    print('Validation samples: ' + str(val_sizes))
+    print('Testing samples: ' + str(tst_sizes))
 
     if collapse:
         print('Collapsing ids in each split.')
-        trn = pd.concat(trn)
-        val = pd.concat(val)
-        tst = pd.concat(tst)
+        trn = np.concatenate(trn)
+        val = np.concatenate(val)
+        tst = np.concatenate(tst)
 
     return trn, val, tst
 

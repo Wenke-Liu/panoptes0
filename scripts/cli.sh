@@ -1,22 +1,20 @@
 # training with full tile list, label list and data split
 nohup python train.py \
     --split=True \
-    --out_dir='../test' \
-    --tile_idx_dir='../idx_files/ucec_all_he_tiles_index_sample_2000.csv' \
-    --label_df_dir='../idx_files/labels_trn_disc_tcga.csv' \
-    --lab_col='Arm1q_gain' \
+    --out_dir='../results/NL5_POLE/X4/230117' \
+    --tile_idx_dir='../idx_files/ucec_all_he_idx.csv' \
+    --label_df_dir='../idx_files/ucec_trn_labels_tcga_disc_nyu.csv' \
+    --lab_col='POLE' \
     --covariate=Age,BMI \
-    --variant=F2 \
-    --max_epoch=2 \
+    --variant=X4 \
+    --max_epoch=20 \
     --batch_size=16 \
     --dropout=0.7 \
-    --base_model='InceptionResNetV1' \
-    --feature_pool=False \
     --aux=True \
-    --aux_weight=0.2 \
-    --patience=5 \
-    --seed=221206 \
-    > 230105_nl5_arm1q_f2_log.txt 2>&1 &
+    --aux_weight=0.3 \
+    --patience=2 \
+    --seed=230117 \
+    > 230117_nl5_pole_x4_log.txt 2>&1 &
 
 
 # training with given data splits

@@ -9,15 +9,12 @@ class DataSet:
                  labels,
                  tile_weights=None,
                  covariate=None,
-                 id_level=3,
                  img_size=299,
                  sym=True,
                  legacy=False
                  ):
         self.filenames = np.asarray(filenames)
-        self.covariate = covariate
-        self.id_level = id_level
-        self.case_id = [fn.split('/')[id_level] for fn in self.filenames[:, 0]]  # get the patient id from directory structure
+        self.covariate = covariate 
         self.labels = labels
         self.tile_weights = tile_weights
         self.c_dim = None
