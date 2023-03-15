@@ -9,7 +9,7 @@ from sklearn.manifold import TSNE
 import argparse
 parser = argparse.ArgumentParser()
 
-parser.add_argument('--multi_gpu', type=str_to_bool, nargs='?', const=True, default=False,
+parser.add_argument('--multi_gpu', type=str_to_bool, nargs='?', const=True, default=True,
                     help='Boolean. Whether to use multi-gpu training.')
 parser.add_argument('--variant', type=str, default=None, help='Model variant abbreviation.')
 parser.add_argument('--out_dir', type=str, default='./results/test', help='Parent output directory.')
@@ -68,7 +68,8 @@ else:
     else:
         FEATURE_POOL = True
     
-    print('Overridden by abbreviation if different:\n')
+    print('Overridden by abbreviation if different:')
+    print('covariate: {}'.format(str(COVARIATE)))
     print('base_model: {}'.format(BASE_MODEL))
     print('feature_pool: {}'.format(str(FEATURE_POOL)))
     
@@ -86,6 +87,7 @@ if args.lab_col is not None:
     tst_df = tst_df.rename(columns={args.lab_col: 'label'})
 
 tst_df = tst_df.loc[~tst_df['label'].isna()]    # remove rows with missing labels
+tst_df['label'] = pd.to_numeric(tst_df['label'], errors='coerce')    # convert label to numeric
 tst_df = tst_df.reset_index(drop=True)    
 
 if COVARIATE is not None:
@@ -94,16 +96,18 @@ if COVARIATE is not None:
     for col in COVARIATE:
         tst_df = tst_df.loc[~tst_df[col].isna()]    # remove rows with missing covariate
         tst_df = tst_df.reset_index(drop=True)    
+        tst_df[col] = pd.to_numeric(tst_df[col], errors='coerce')
+
     N_COV = len(COVARIATE)
     tst = DataSet(filenames=tst_df[['L1path', 'L2path', 'L3path']], 
                   labels=tst_df['label'], covariate=tst_df[COVARIATE], 
-                  tile_weights=tst_df['sample_weights'], id_level=3, legacy=args.legacy)
+                  tile_weights=tst_df['sample_weights'], legacy=args.legacy)
  
 else:
     N_COV = None
     tst = DataSet(filenames=tst_df[['L1path', 'L2path', 'L3path']],
               labels=tst_df['label'], 
-              tile_weights=tst_df['sample_weights'], id_level=3, legacy=args.legacy)
+              tile_weights=tst_df['sample_weights'], legacy=args.legacy)
 
 tst_ds = tst.create_dataset(shuffle=False, batch_size=BATCH_SIZE, ds_epoch=1)
 

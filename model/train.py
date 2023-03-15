@@ -14,7 +14,7 @@ from sklearn import metrics
 import argparse
 parser = argparse.ArgumentParser()
 
-parser.add_argument('--multi_gpu', type=str_to_bool, nargs='?', const=True, default=False,
+parser.add_argument('--multi_gpu', type=str_to_bool, nargs='?', const=True, default=True,
                     help='Boolean. Whether to use multi-gpu training.')
 parser.add_argument('--out_dir', type=str, default='./results/test', help='Parent output directory.')
 parser.add_argument('--variant', type=str, default=None, help='Model variant abbreviation.')
@@ -29,7 +29,7 @@ parser.add_argument('--val_df', type=str, default='./', help='Path to val index 
 parser.add_argument('--tst_df', type=str, default='./', help='Path to tst index file.')  
 parser.add_argument('--lab_col', type=str, default=None, help='Name of the label column in the label data table.')
 parser.add_argument('--covariate', type=str, default=None, help='List of selected covarite columns, comma-delimited.')
-parser.add_argument('--val_sample', type=int, default=None, help='Number of validation examples.')
+parser.add_argument('--val_sample', type=int, default=None, help='Number of validation examples used at the end of epoch.')
 parser.add_argument('--manifold_sample', type=int, default=20000,
                     help='Number of test examples used to estimate manifold.')
 parser.add_argument('--base_model', type=str, default='InceptionResNetV1', help='Name of the branch base model.')  
@@ -45,6 +45,7 @@ parser.add_argument('--max_epoch', type=int, default=20, help='Maximum number of
 parser.add_argument('--patience', type=int, default=2, help='Patience during training.')
 parser.add_argument('--seed', type=int, default=42, help='Random seed for data split and sampling.')
 parser.add_argument('--agg_level', type=str, default='Patient_ID', help='Aggregation level of test inference.')
+parser.add_argument('--legacy', type=str_to_bool, nargs='?', const=True, default=False, help='Whether to load data in legacy mode.') 
 
 args = parser.parse_args()
 print('command line inputs:')
@@ -71,6 +72,7 @@ MAX_EPOCH = args.max_epoch
 PATIENCE = args.patience
 SEED = args.seed
 AGG = args.agg_level
+LEGACY = args.legacy
 
 if not (VARIANT.startswith(('X', 'F')) and VARIANT.endswith(('1', '2', '3', '4'))):
     print('Variant abbreviation not valid. Using individual flags.')
@@ -156,9 +158,11 @@ else:    # patient level random split controled by SPLIT_SEED
     trn_df = data_idx.loc[data_idx['Patient_ID'].isin(trn_id)].copy().reset_index(drop=True)
     
     val_df = data_idx.loc[data_idx['Patient_ID'].isin(val_id)].copy().reset_index(drop=True)
+    """
     if VAL_SAMPLE is not None:
         val_df = val_df.sample(n=VAL_SAMPLE, random_state=VAL_SEED).reset_index(drop=True)    # sample
-      
+    """
+     
     tst_df = data_idx.loc[data_idx['Patient_ID'].isin(tst_id)].copy().reset_index(drop=True)
     
 
@@ -174,8 +178,13 @@ save_idx_df(out_dir=OUT_DIR + '/data', idx_df=tst_df, fn='tst')
 
 
 print('Number of training examples: ' + str(trn_df.shape[0]))
-MAX_STEPS = ceil(trn_df.shape[0]/BATCH_SIZE)
-print('Maximum steps per epoch: ' + str(MAX_STEPS))
+MAX_TRN_STEPS = ceil(trn_df.shape[0]/BATCH_SIZE)
+print('Maximum training steps per epoch: ' + str(MAX_TRN_STEPS))
+
+print('Number of validation examples: ' + str(val_df.shape[0]))
+VAL_STEPS = ceil(VAL_SAMPLE/BATCH_SIZE)
+print('Validation steps per epoch: ' + str(VAL_STEPS))
+
 
 if COVARIATE is None:
     trn = DataSet(filenames=trn_df[['L1path', 'L2path', 'L3path']], labels=trn_df['label'], tile_weights=trn_df['sample_weights'])
@@ -186,17 +195,19 @@ else:
     
     trn = DataSet(filenames=trn_df[['L1path', 'L2path', 'L3path']], 
                   labels=trn_df['label'], covariate=trn_df[COVARIATE], 
-                  tile_weights=trn_df['sample_weights'])
+                  tile_weights=trn_df['sample_weights'], legacy=LEGACY)
+    
     val = DataSet(filenames=val_df[['L1path', 'L2path', 'L3path']],
                   labels=val_df['label'], covariate=val_df[COVARIATE], 
-                  tile_weights=val_df['sample_weights'])
+                  tile_weights=val_df['sample_weights'], legacy=LEGACY)
+    
     tst = DataSet(filenames=tst_df[['L1path', 'L2path', 'L3path']], 
                   labels=tst_df['label'], covariate=tst_df[COVARIATE], 
-                  tile_weights=tst_df['sample_weights'])
+                  tile_weights=tst_df['sample_weights'], legacy=LEGACY)
 
 
 trn_ds = trn.create_dataset(batch_size=BATCH_SIZE, ds_epoch=None, augmentation=True)
-val_ds = val.create_dataset(batch_size=BATCH_SIZE, ds_epoch=1)
+val_ds = val.create_dataset(batch_size=BATCH_SIZE, ds_epoch=None)
 tst_ds = tst.create_dataset(shuffle=False, batch_size=BATCH_SIZE, ds_epoch=1)
 
 
@@ -206,19 +217,23 @@ if MULTI_GPU:
 
     with strategy.scope():
         model = PANOPTES(base_model_name=BASE_MODEL, auxiliary=AUX, aux_weight=AUX_W, feature_pool=FEATURE_POOL, covariate=N_COV, dropout=DROPOUT, n_classes=NUM_CLASS)
+        accuracy_metric = tf.keras.metrics.SparseCategoricalAccuracy(name='accuracy')
         model.compile(loss_fn=tf.keras.losses.SparseCategoricalCrossentropy(), 
-                      metrics=[tf.keras.metrics.SparseCategoricalAccuracy()])
+                      metrics=[accuracy_metric])
 
 else:
      model = PANOPTES(base_model_name=BASE_MODEL, auxiliary=AUX, aux_weight=AUX_W, feature_pool=FEATURE_POOL, covariate=N_COV, dropout=DROPOUT, n_classes=NUM_CLASS)
+     accuracy_metric = tf.keras.metrics.SparseCategoricalAccuracy(name='accuracy')
      model.compile(loss_fn=tf.keras.losses.SparseCategoricalCrossentropy(), 
-                   metrics=[tf.keras.metrics.SparseCategoricalAccuracy()])
+                   metrics=[accuracy_metric])
 
 
 model.train(trn_data=trn_ds, val_data=val_ds,
-            steps=min(STEPS, MAX_STEPS),
+            steps=min(STEPS, MAX_TRN_STEPS),
             n_epoch=MAX_EPOCH,
             patience=PATIENCE,
+            val_steps=VAL_STEPS,
+            pretrain=100,
             log_dir=OUT_DIR + '/log',
             model_dir=OUT_DIR + '/model')
 
@@ -277,7 +292,9 @@ tst_df_slide.to_csv(OUT_DIR + '/pred/tst_slide_pred.csv', index=False)
 print('{} level predictions and  tSNE embeddings saved.'.format(AGG))
 
 print('Generating tile level tSNE...')
-np.random.seed(SEED)
+np.random.seed(TST_SEED)
+print('Random seed: {}'.format(str(TST_SEED)))
+
 sample_idx = np.random.choice(tst_df.shape[0], MANIFOLD_SAMPLE)    # sample 20,000 tiles for TSNE
 print('Activation shape: ' + str(tst_res[0].shape))
 tst_sampled = tst_res[0][sample_idx, :]

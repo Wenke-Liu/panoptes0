@@ -1,4 +1,5 @@
 import os
+import shutil
 import numpy as np
 import pandas as pd
 import tensorflow as tf
@@ -118,7 +119,7 @@ class PANOPTES:
     def compile(self,
                 loss_fn=tf.keras.losses.BinaryCrossentropy(),
                 metrics=[tf.keras.metrics.AUC()],
-                learning_rate=0.0001):
+                learning_rate=0.00001):
         if self.auxiliary:
             w = [1, self.aux_weight]
             self.model.compile(optimizer=keras.optimizers.Adam(learning_rate=learning_rate),
@@ -136,6 +137,8 @@ class PANOPTES:
               trn_data, val_data,
               n_epoch=10,
               steps=10000,
+              val_steps=1000,
+              pretrain=None,
               patience=5,
               log_dir='./log',
               model_dir='./model',
@@ -151,29 +154,49 @@ class PANOPTES:
 
         os.makedirs(model_dir + '/ckpt', exist_ok=True)
 
-        csv_logger = tf.keras.callbacks.CSVLogger(log_dir + '/trn_history_logs.csv', append=True)
+        trn_csv_logger = tf.keras.callbacks.CSVLogger(log_dir + '/trn_history_logs.csv', append=True)
 
-        tensor_board = tf.keras.callbacks.TensorBoard(log_dir + '/trn_tb_logs', update_freq=1000)
+        trn_tensor_board = tf.keras.callbacks.TensorBoard(log_dir + '/trn_tb_logs', update_freq=1000)
          
-        ckpt = tf.keras.callbacks.ModelCheckpoint(filepath=model_dir + '/ckpt/weights.{epoch:03d}-{val_loss:.4f}.hdf5',
+        ckpt = tf.keras.callbacks.ModelCheckpoint(filepath=model_dir + '/ckpt/weights.{epoch:03d}-{val_prob_loss:.4f}.hdf5',
                                                   save_weights_only=True,
-                                                  monitor='val_loss',
+                                                  monitor='val_prob_loss',
                                                   mode='min',
-                                                  save_best_only=False)
+                                                  save_best_only=True)
 
-        early_stopping = tf.keras.callbacks.EarlyStopping(monitor="val_loss",
+        early_stopping = tf.keras.callbacks.EarlyStopping(monitor="val_prob_loss",
                                                           patience=patience,
                                                           restore_best_weights=True)
-
+        
+        initial_epoch = 0
+        if pretrain is not None:
+            print(f"Pretraining: warm up for {pretrain} epochs.")
+            pre_csv_logger = tf.keras.callbacks.CSVLogger(log_dir + '/pre_history_logs.csv', append=True)
+            pre_tensor_board = tf.keras.callbacks.TensorBoard(log_dir + '/pre_tb_logs', update_freq=1000)
+            self.classifier_history = self.model.fit(trn_data, validation_data=val_data,    # pretrain step
+                                                steps_per_epoch=steps,
+                                                validation_steps=val_steps,
+                                                epochs=pretrain,
+                                                callbacks=[pre_csv_logger, pre_tensor_board, ckpt])
+            initial_epoch = pretrain
+        
+        print('Training starts.')
         self.classifier_history = self.model.fit(trn_data, validation_data=val_data,    # train step
                                                 steps_per_epoch=steps,
+                                                validation_steps=val_steps,
                                                 epochs=n_epoch,
-                                                callbacks=[csv_logger, tensor_board, ckpt, early_stopping])
+                                                initial_epoch=initial_epoch,
+                                                callbacks=[trn_csv_logger, trn_tensor_board, ckpt, early_stopping])
             
         self.datetime = datetime.now().strftime(r"%y%m%d_%H%M")
         
         self.model.save_weights(model_dir + "/panoptes_weights_final.h5")
         print('Final model saved.')
+        files = os.listdir(model_dir + '/ckpt')
+        best_ckpt = min(files, key=lambda x: float((x.split('-')[1]).split('.hdf5')[0]))
+        print(f'Best model checkpoint: {best_ckpt}')
+        shutil.copyfile(model_dir + '/ckpt/' + best_ckpt, model_dir + "/panoptes_weights_best.h5")
+
 
     def inference(self, x, batch_size=8):
         inputs = self.model.input

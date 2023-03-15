@@ -35,7 +35,7 @@ class DataSet:
     def create_dataset(self,
                        shuffle=True,
                        augmentation=False,
-                       ds_epoch=100,
+                       ds_epoch=None,
                        batch_size=8):
 
         dataset = tf.data.Dataset.from_tensor_slices((self.filenames[:, 0], self.filenames[:, 1], self.filenames[:, 2],
