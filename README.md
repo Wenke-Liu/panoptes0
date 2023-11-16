@@ -21,6 +21,10 @@ Model abbreviations:
     - with abbreviations: `--variant=F{1, 2 ,3, 4}`
     - additonal flag: `--covariate=age,BMI`
 
+- I5: Single-resolution InceptionResNetv1
+
+- I6: Single-resolution InceptionResNetv2
+
 Use the corresponding command line arguments to instantiate the desired Panoptes variant.
 
 See [examples](scripts/cli.sh) for more details.

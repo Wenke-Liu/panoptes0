@@ -46,6 +46,7 @@ print(' '.join(f'{k}={v}\n' for k, v in vars(args).items()))
 """
 Global Variables
 """
+
 MULTI_GPU = args.multi_gpu
 VARIANT = args.variant
 SINGLE_RES = args.single_res
