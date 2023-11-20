@@ -15,6 +15,7 @@ parser.add_argument('--variant', type=str, default=None, help='Model variant abb
 parser.add_argument('--single_res', type=str, default=None, help='Column name of the single reolution path. e.g, L1path.')
 parser.add_argument('--out_dir', type=str, default='./results/test', help='Parent output directory.')
 
+parser.add_argument('--mode', type=str, default='test', help='test (with known labels) or predict. In predict model, use only tst_df, and provide a dummy label column.')
 parser.add_argument('--tst_df', type=str, default=None, help='Path to tst index file.')  
 parser.add_argument('--tile_idx_dir', type=str, default='idx_files/pancan_imaging_all_tiles_index_TN.csv',
                     help='Path to tile index file.')
@@ -202,6 +203,7 @@ if len(tst_res_ls) == 1:
 else:
     latents = [item[0] for item in tst_res_ls]
     scores = [item[1] for item in tst_res_ls]
+    
     agg_latents = pd.concat(latents, axis=0)    # latents aggregated first 
     tile_scores = pd.concat(scores, axis=0)
 
@@ -209,24 +211,6 @@ tile_scores.to_csv(OUT_DIR + '/tst_tile_pred.csv', index=False)
 print('Tile level predictions saved.')
 
 agg_scores = tile_scores[selected_cols].groupby(idx_cols).agg('mean').reset_index()  
-
-if NUM_CLASS == 2:
-    print('Binary prediction. Metrics on positive scores.')
-
-    fpr, tpr, thresholds = metrics.roc_curve(tile_scores['label'], tile_scores['Score_1'], pos_label=1)
-    print('Tile level AUROC on test data: '  + str(metrics.auc(fpr, tpr)))
-
-    fpr, tpr, thresholds = metrics.roc_curve(agg_scores['label'], agg_scores['Score_1'], pos_label=1)
-    print('{} level AUROC on test data: '.format(AGG) + str(metrics.auc(fpr, tpr)))
-
-else:
-    print('Multi-class prediction. Per-class AUROC calculation.')
-    for i in range(NUM_CLASS):
-        fpr, tpr, thresholds = metrics.roc_curve(tile_scores['label'], tile_scores['Score_' + str(i)], pos_label=1)
-        print('Tile level AUROC for level ' + str(i) + str(metrics.auc(fpr, tpr)))
-        
-        fpr, tpr, thresholds = metrics.roc_curve(agg_scores['label'], agg_scores['Score_' + str(i)], pos_label=1)
-        print('{} level AUROC for level '.format(AGG) + str(i) + str(metrics.auc(fpr, tpr)))
 
 
 print('Generating {} level tSNE...'.format(AGG))
@@ -245,11 +229,11 @@ MANIFOLD_SAMPLE = min(MANIFOLD_SAMPLE, tst_df.shape[0])
 tst_sampled_df = tst_df.sample(n=MANIFOLD_SAMPLE, random_state=SEED)    # sample MANIFOLD_SAMPLE tiles for TSNE
 
 if COVARIATE is not None:
-    tst_sampled = DataSet(filenames=tst_sampled_df[['L1path', 'L2path', 'L3path']], 
+    tst_sampled = DataSet(filenames=tst_sampled_df[im_paths], 
                         labels=tst_sampled_df['label'], covariate=tst_sampled_df[COVARIATE], 
                         tile_weights=tst_sampled_df['sample_weights'], legacy=args.legacy)
 else:
-    tst_sampled = DataSet(filenames=tst_sampled_df[['L1path', 'L2path', 'L3path']],
+    tst_sampled = DataSet(filenames=tst_sampled_df[im_paths],
                         labels=tst_sampled_df['label'], 
                         tile_weights=tst_sampled_df['sample_weights'], legacy=args.legacy)
     
@@ -267,4 +251,25 @@ sampled_score = pd.concat([sampled_score, sampled_embedding], axis=1)
 
 sampled_score.to_csv(OUT_DIR + '/tSNE_P_N.csv', index=False)
 print('Tile level tSNE embeddings saved.' + ' {} tiles sampled.'.format(str(MANIFOLD_SAMPLE)))
+
+
+if args.mode == 'test':    # calculate AUROC if labels known in test data
+
+    if NUM_CLASS == 2:
+        print('Binary prediction. Metrics on positive scores.')
+
+        fpr, tpr, thresholds = metrics.roc_curve(tile_scores['label'], tile_scores['Score_1'], pos_label=1)
+        print('Tile level AUROC on test data: '  + str(metrics.auc(fpr, tpr)))
+
+        fpr, tpr, thresholds = metrics.roc_curve(agg_scores['label'], agg_scores['Score_1'], pos_label=1)
+        print('{} level AUROC on test data: '.format(AGG) + str(metrics.auc(fpr, tpr)))
+
+    else:
+        print('Multi-class prediction. Per-class AUROC calculation.')
+        for i in range(NUM_CLASS):
+            fpr, tpr, thresholds = metrics.roc_curve(tile_scores['label'], tile_scores['Score_' + str(i)], pos_label=1)
+            print('Tile level AUROC for level ' + str(i) + str(metrics.auc(fpr, tpr)))
+        
+            fpr, tpr, thresholds = metrics.roc_curve(agg_scores['label'], agg_scores['Score_' + str(i)], pos_label=1)
+            print('{} level AUROC for level '.format(AGG) + str(i) + str(metrics.auc(fpr, tpr)))
 
